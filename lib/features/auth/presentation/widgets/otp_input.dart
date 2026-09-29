@@ -12,11 +12,17 @@ class OtpInput extends StatefulWidget {
     super.key,
     required this.controller,
     this.length = 6,
+    this.enabled = true,
+    this.hasError = false,
     this.onChanged,
   });
 
   final TextEditingController controller;
   final int length;
+  final bool enabled;
+
+  /// Outlines every box in the error color.
+  final bool hasError;
   final ValueChanged<String>? onChanged;
 
   @override
@@ -43,6 +49,7 @@ class _OtpInputState extends State<OtpInput> {
   void _rebuild() => setState(() {});
 
   Color _borderFor(int index, String code) {
+    if (widget.hasError) return AppColors.error;
     final active = index == code.length.clamp(0, widget.length - 1);
     if (_focusNode.hasFocus && active) return AppColors.primary;
     if (index < code.length) return AppColors.otpFilled;
@@ -64,7 +71,9 @@ class _OtpInputState extends State<OtpInput> {
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: widget.enabled
+                          ? AppColors.surface
+                          : AppColors.background,
                       borderRadius: BorderRadius.circular(AppSizes.radiusSm),
                       border: Border.all(
                         color: _borderFor(i, code),
@@ -91,6 +100,7 @@ class _OtpInputState extends State<OtpInput> {
               controller: widget.controller,
               focusNode: _focusNode,
               autofocus: true,
+              enabled: widget.enabled,
               keyboardType: TextInputType.number,
               autofillHints: const [AutofillHints.oneTimeCode],
               inputFormatters: [
@@ -100,7 +110,18 @@ class _OtpInputState extends State<OtpInput> {
               onChanged: widget.onChanged,
               showCursor: false,
               style: const TextStyle(color: Colors.transparent, fontSize: 1),
-              decoration: const InputDecoration.collapsed(hintText: null),
+              // Override every border state so the theme's focused outline
+              // isn't drawn over the boxes.
+              decoration: const InputDecoration(
+                isCollapsed: true,
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+              ),
             ),
           ),
         ],

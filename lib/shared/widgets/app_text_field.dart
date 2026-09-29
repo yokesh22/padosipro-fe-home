@@ -5,7 +5,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 
 /// Labelled input matching the design: label above, white rounded field,
-/// optional leading icon / prefix text and an error line below.
+/// optional leading icon / prefix text / trailing [suffix], and an error
+/// (red) or [successText] (green check) line below.
 class AppTextField extends StatelessWidget {
   const AppTextField({
     super.key,
@@ -15,6 +16,9 @@ class AppTextField extends StatelessWidget {
     this.icon,
     this.prefixText,
     this.errorText,
+    this.successText,
+    this.suffix,
+    this.obscureText = false,
     this.focusNode,
     this.keyboardType,
     this.textInputAction,
@@ -33,6 +37,11 @@ class AppTextField extends StatelessWidget {
   final IconData? icon;
   final String? prefixText;
   final String? errorText;
+
+  /// Shown when there's no [errorText].
+  final String? successText;
+  final Widget? suffix;
+  final bool obscureText;
   final FocusNode? focusNode;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
@@ -47,6 +56,7 @@ class AppTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasError = errorText != null;
+    final hasSuccess = !hasError && successText != null;
     final isMultiline = maxLines > 1;
 
     return Column(
@@ -64,6 +74,9 @@ class AppTextField extends StatelessWidget {
             inputFormatters: inputFormatters,
             textCapitalization: textCapitalization,
             autofillHints: autofillHints,
+            obscureText: obscureText,
+            enableSuggestions: !obscureText,
+            autocorrect: !obscureText,
             maxLines: maxLines,
             expands: false,
             textAlignVertical: isMultiline
@@ -103,6 +116,12 @@ class AppTextField extends StatelessWidget {
                       ),
                     ),
               prefixIconConstraints: const BoxConstraints(),
+              suffixIcon: suffix == null
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: suffix,
+                    ),
               enabledBorder: hasError
                   ? OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSizes.radius),
@@ -126,6 +145,19 @@ class AppTextField extends StatelessWidget {
           Text(
             errorText!,
             style: const TextStyle(fontSize: 12, color: AppColors.error),
+          ),
+        ],
+        if (hasSuccess) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.check, size: 14, color: AppColors.success),
+              const SizedBox(width: 4),
+              Text(
+                successText!,
+                style: const TextStyle(fontSize: 12, color: AppColors.success),
+              ),
+            ],
           ),
         ],
       ],

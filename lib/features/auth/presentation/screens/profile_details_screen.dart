@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/error/app_exception.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../providers/profile_notifier.dart';
 
-/// Step 3 (new users only): name is required, the rest is optional.
+/// Step 3 (new users only): name is required. The address is optional, but
+/// once any address field is filled, flat / unit is required.
 class ProfileDetailsScreen extends ConsumerStatefulWidget {
   const ProfileDetailsScreen({super.key});
 
@@ -24,7 +27,14 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
   final _flat = TextEditingController();
   final _notes = TextEditingController();
 
+  // Flat error only shows after a Continue tap, not while typing.
+  bool _triedSubmit = false;
+
   bool get _nameValid => Validators.isValidName(_name.text);
+  bool get _addressEntered =>
+      [_address, _society, _flat, _notes].any((c) => c.text.trim().isNotEmpty);
+  bool get _flatMissing => _addressEntered && _flat.text.trim().isEmpty;
+  bool get _formValid => _nameValid && !_flatMissing;
 
   @override
   void dispose() {
@@ -35,29 +45,54 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
   }
 
   void _submit() {
-    if (!_nameValid) return;
+    setState(() => _triedSubmit = true);
+    if (!_formValid) return;
     FocusScope.of(context).unfocus();
     ref
         .read(profileProvider.notifier)
         .submit(
-          name: _name.text,
-          address: _address.text,
+          fullName: _name.text,
+          flatUnit: _flat.text,
+          addressLine: _address.text,
           society: _society.text,
-          flat: _flat.text,
           notes: _notes.text,
         );
+  }
+
+  void _onChanged(String _) {
+    ref.read(profileProvider.notifier).clearError();
+    setState(() {});
+  }
+
+  /// Server error shown above Continue; null for 401/404, which end the
+  /// session and leave this screen.
+  static String? _formErrorFor(Object? error) {
+    if (error is! AppException) return null;
+    return switch (error.statusCode) {
+      401 || 404 => null,
+      403 => 'Your account is suspended. Please contact support.',
+      _ => error.message,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     ref.listen(profileProvider, (_, next) {
-      if (next is AsyncError) {
+      final status = (next.error as AppException?)?.statusCode;
+      if (status == 401 || status == 404) {
+        // Root messenger, so it stays visible on the sign-in screen.
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(next.error.toString())));
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Your session has ended. Please sign in again.'),
+            ),
+          );
       }
     });
-    final isLoading = ref.watch(profileProvider).isLoading;
+    final profileState = ref.watch(profileProvider);
+    final isLoading = profileState.isLoading;
+    final formError = _formErrorFor(profileState.error);
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -88,7 +123,8 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.name],
-                    onChanged: (_) => setState(() {}),
+                    inputFormatters: [LengthLimitingTextInputFormatter(100)],
+                    onChanged: _onChanged,
                   ),
                   const SizedBox(height: 18),
                   AppTextField(
@@ -99,6 +135,8 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                     height: 92,
                     keyboardType: TextInputType.streetAddress,
                     textCapitalization: TextCapitalization.sentences,
+                    inputFormatters: [LengthLimitingTextInputFormatter(500)],
+                    onChanged: _onChanged,
                   ),
                   const SizedBox(height: 18),
                   AppTextField(
@@ -107,6 +145,8 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                     hint: 'Name as on the gate',
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
+                    inputFormatters: [LengthLimitingTextInputFormatter(200)],
+                    onChanged: _onChanged,
                   ),
                   const SizedBox(height: 18),
                   AppTextField(
@@ -114,6 +154,11 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                     controller: _flat,
                     hint: 'e.g. Tower B, 1204',
                     textInputAction: TextInputAction.next,
+                    inputFormatters: [LengthLimitingTextInputFormatter(100)],
+                    errorText: _triedSubmit && _flatMissing
+                        ? 'Add your flat / unit to save this address.'
+                        : null,
+                    onChanged: _onChanged,
                   ),
                   const SizedBox(height: 18),
                   AppTextField(
@@ -122,6 +167,8 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                     hint: 'e.g. Call before arriving',
                     textCapitalization: TextCapitalization.sentences,
                     textInputAction: TextInputAction.done,
+                    inputFormatters: [LengthLimitingTextInputFormatter(500)],
+                    onChanged: _onChanged,
                     onSubmitted: (_) => _submit(),
                   ),
                 ],
@@ -141,9 +188,26 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!_nameValid) ...[
+                  if (formError != null) ...[
+                    Text(
+                      formError,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.error,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ] else if (!_nameValid) ...[
                     const Text(
                       'Enter your full name to continue.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 10),
+                  ] else if (_flatMissing) ...[
+                    const Text(
+                      'Add your flat / unit to save the address.',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 13, color: AppColors.muted),
                     ),
@@ -152,7 +216,7 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                   PrimaryButton(
                     label: 'Continue',
                     loadingLabel: 'Saving…',
-                    enabled: _nameValid,
+                    enabled: _formValid,
                     isLoading: isLoading,
                     onPressed: _submit,
                   ),

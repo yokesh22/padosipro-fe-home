@@ -11,6 +11,8 @@ abstract final class AppColors {
   static const border = Color(0xFFD6D7DF);
   static const placeholder = Color(0xFF8A94A3);
   static const error = Color(0xFFB3261E);
+  static const signOutBorder = Color(0xFFC0504A);
+  static const success = Color(0xFF2E7D5B);
 
   static const mint = Color(0xFFE3F2EC);
   static const mintBorder = Color(0xFFBFDCD0);

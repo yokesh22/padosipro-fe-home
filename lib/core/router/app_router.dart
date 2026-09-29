@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/account/presentation/screens/account_screen.dart';
 import '../../features/auth/presentation/screens/profile_details_screen.dart';
 import '../../features/auth/presentation/screens/sign_in_screen.dart';
+import '../../features/auth/presentation/screens/sign_up_screen.dart';
 import '../../features/auth/presentation/screens/verify_otp_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/tasks/presentation/screens/all_services_screen.dart';
@@ -17,14 +19,14 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(refresh.dispose);
 
   final router = GoRouter(
-    initialLocation: Routes.signIn,
+    initialLocation: Routes.signUp,
     refreshListenable: refresh,
     redirect: (context, state) {
       final session = ref.read(sessionProvider);
       final location = state.matchedLocation;
 
       if (session == null) {
-        return Routes.public.contains(location) ? null : Routes.signIn;
+        return Routes.public.contains(location) ? null : Routes.signUp;
       }
       if (session.needsProfile) {
         return location == Routes.details ? null : Routes.details;
@@ -35,6 +37,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: Routes.signUp,
+        builder: (context, state) => const SignUpScreen(),
+      ),
       GoRoute(
         path: Routes.signIn,
         builder: (context, state) => const SignInScreen(),
@@ -55,6 +61,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.services,
         builder: (context, state) =>
             AllServicesScreen(initialCategory: state.extra as int?),
+      ),
+      GoRoute(
+        path: Routes.account,
+        builder: (context, state) => const AccountScreen(),
       ),
     ],
   );

@@ -6,9 +6,14 @@ abstract final class Validators {
 
   static bool isValidEmail(String email) => _email.hasMatch(email.trim());
 
+  static bool isValidPassword(String password) => password.length >= 8;
+
   static bool isValidOtp(String otp) => RegExp(r'^\d{6}$').hasMatch(otp);
 
-  static bool isValidName(String name) => name.trim().length > 1;
+  static bool isValidName(String name) {
+    final length = name.trim().length;
+    return length >= 2 && length <= 100;
+  }
 
   /// `yokesh@gmail.com` → `y•••@gmail.com`
   static String maskEmail(String email) {

@@ -9,7 +9,8 @@ import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../shared/widgets/back_text_button.dart';
 import '../../../../shared/widgets/primary_button.dart';
-import '../providers/sign_in_notifier.dart';
+import '../../data/models/auth_response.dart';
+import '../providers/sign_up_notifier.dart';
 import '../providers/verify_otp_notifier.dart';
 import '../widgets/otp_input.dart';
 
@@ -43,37 +44,90 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
     super.dispose();
   }
 
-  void _startCountdown() {
+  /// The timer is display-only; the server enforces the real cooldown.
+  void _startCountdown([int seconds = _resendAfter]) {
     _timer?.cancel();
-    setState(() => _secondsLeft = _resendAfter);
+    setState(() => _secondsLeft = seconds);
+    if (seconds <= 0) return;
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_secondsLeft <= 1) timer.cancel();
       setState(() => _secondsLeft--);
     });
   }
 
-  void _resend() {
+  Future<void> _resend() async {
+    await ref.read(resendOtpProvider.notifier).resend();
+    if (!mounted) return;
+
+    final result = ref.read(resendOtpProvider);
+    final error = result.error;
+    if (error is ResendOtpException && error.retryAfterSeconds != null) {
+      // Too soon: trust the server's remaining cooldown.
+      _startCountdown(error.retryAfterSeconds!);
+      return;
+    }
+    if (error != null) {
+      _showSnackBar(error.toString());
+      return;
+    }
     _otpController.clear();
     _startCountdown();
-    ref.read(verifyOtpProvider.notifier).resend();
+    _showSnackBar(
+      'A new code has been sent to your email. Use the code from the newest '
+      'email.',
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _submit() {
     if (!_otpValid) return;
+    FocusScope.of(context).unfocus();
     ref.read(verifyOtpProvider.notifier).verify(_otpController.text);
   }
 
+  void _onOtpChanged(String _) {
+    ref.read(verifyOtpProvider.notifier).clearError();
+    setState(() {});
+  }
+
+  static String _messageFor(OtpVerificationException error) =>
+      switch (error.failure) {
+        OtpFailure.invalidCode => 'Incorrect code. Check it and try again.',
+        OtpFailure.expired =>
+          'This code has expired or was already used. Request a new one.',
+        OtpFailure.tooManyAttempts => 'Too many attempts. Request a new code.',
+        OtpFailure.suspended =>
+          'Your account is suspended. Please contact support.',
+        OtpFailure.other => error.message,
+      };
+
   @override
   Widget build(BuildContext context) {
+    // Without a usable code the user can't continue, so allow resend now.
     ref.listen(verifyOtpProvider, (_, next) {
-      if (next is AsyncError) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(next.error.toString())));
+      final failure = (next.error as OtpVerificationException?)?.failure;
+      if (failure == OtpFailure.expired ||
+          failure == OtpFailure.tooManyAttempts) {
+        _startCountdown(0);
       }
     });
-    final isLoading = ref.watch(verifyOtpProvider).isLoading;
-    final email = ref.watch(pendingLoginProvider)?.email ?? '';
+    final isResending = ref.watch(resendOtpProvider).isLoading;
+    final verifyState = ref.watch(verifyOtpProvider);
+    final isLoading = verifyState.isLoading;
+    final error = verifyState.error is OtpVerificationException
+        ? verifyState.error! as OtpVerificationException
+        : null;
+    final failure = error?.failure;
+    // A used-up code or suspended account can't be retried.
+    final locked =
+        failure == OtpFailure.tooManyAttempts ||
+        failure == OtpFailure.suspended;
+    final email = ref.watch(pendingSignUpProvider)?.email ?? '';
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -117,17 +171,33 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                       const SizedBox(height: 8),
                       OtpInput(
                         controller: _otpController,
-                        onChanged: (_) => setState(() {}),
+                        enabled: !locked && !isLoading,
+                        hasError: error != null,
+                        onChanged: _onOtpChanged,
                       ),
+                      if (error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _messageFor(error),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 20),
-                      if (_secondsLeft > 0)
+                      if (failure == OtpFailure.suspended)
+                        const SizedBox.shrink()
+                      else if (isResending)
+                        Text('Sending a new code…', style: textTheme.bodyMedium)
+                      else if (_secondsLeft > 0)
                         Text.rich(
                           TextSpan(
                             text: 'Resend code in ',
                             children: [
                               TextSpan(
                                 text:
-                                    '0:${_secondsLeft.toString().padLeft(2, '0')}',
+                                    '${_secondsLeft ~/ 60}:${(_secondsLeft % 60).toString().padLeft(2, '0')}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.ink,
@@ -157,9 +227,9 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
               PrimaryButton(
                 label: 'Verify',
                 loadingLabel: 'Verifying…',
-                enabled: _otpValid,
+                enabled: _otpValid && !locked,
                 isLoading: isLoading,
-                onPressed: _submit,
+                onPressed: locked ? () {} : _submit,
               ),
             ],
           ),

@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import 'app_exception.dart';
 
 abstract final class ErrorMapper {
+  static const _generic = 'Something went wrong. Please try again.';
+
   static AppException fromDio(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
@@ -14,22 +16,34 @@ abstract final class ErrorMapper {
           'Unable to reach the server. Check your connection.',
         );
       case DioExceptionType.badResponse:
+        final status = e.response?.statusCode;
+        // Backend errors: `{success, statusCode, message, error: {code}}`.
         final data = e.response?.data;
-        final serverMessage = data is Map ? data['message'] : null;
+        final body = data is Map ? data : const {};
+        final error = body['error'];
+        final code = error is Map ? error['code'] : null;
+        final details = error is Map ? error['details'] : null;
+        final message =
+            body['message'] ?? (error is Map ? error['message'] : null);
         return AppException(
-          serverMessage is String && serverMessage.isNotEmpty
-              ? serverMessage
-              : 'Something went wrong. Please try again.',
-          statusCode: e.response?.statusCode,
+          // Server-side failures aren't meaningful to the user.
+          message is String && message.isNotEmpty && (status ?? 0) < 500
+              ? message
+              : _generic,
+          statusCode: status,
+          code: code is String ? code : null,
+          details: details is Map
+              ? Map<String, dynamic>.from(details)
+              : const {},
         );
       default:
-        return const AppException('Something went wrong. Please try again.');
+        return const AppException(_generic);
     }
   }
 
   static AppException from(Object error) => switch (error) {
     AppException() => error,
     DioException() => fromDio(error),
-    _ => const AppException('Something went wrong. Please try again.'),
+    _ => const AppException(_generic),
   };
 }

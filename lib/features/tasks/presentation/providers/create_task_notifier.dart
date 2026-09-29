@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/task_request.dart';
@@ -5,7 +7,7 @@ import '../../data/tasks_repository.dart';
 
 class CreateTaskNotifier extends AsyncNotifier<TaskRequest?> {
   @override
-  Future<TaskRequest?> build() async => null;
+  FutureOr<TaskRequest?> build() => null;
 
   /// Returns the created request, or null on failure.
   Future<TaskRequest?> submit({

@@ -1,45 +1,38 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/storage/session_store.dart';
 import '../../data/auth_repository.dart';
-
-class PendingLogin {
-  const PendingLogin({required this.phone, required this.email});
-
-  final String phone;
-  final String email;
-}
-
-/// Phone + email the OTP was sent to; used by Verify OTP and resend.
-class PendingLoginNotifier extends Notifier<PendingLogin?> {
-  @override
-  PendingLogin? build() => null;
-
-  void set(PendingLogin value) => state = value;
-}
-
-final pendingLoginProvider =
-    NotifierProvider<PendingLoginNotifier, PendingLogin?>(
-      PendingLoginNotifier.new,
-    );
 
 class SignInNotifier extends AsyncNotifier<void> {
   @override
-  Future<void> build() async {}
+  FutureOr<void> build() {}
 
-  /// Returns true when the OTP was sent.
-  Future<bool> sendOtp({required String phone, required String email}) async {
+  /// On success starts the session; the router then moves on to Home, or
+  /// to "A few details" if the account has no name yet. Never shows OTP.
+  Future<void> signIn({required String email, required String password}) async {
     state = const AsyncLoading();
     final result = await AsyncValue.guard(
-      () =>
-          ref.read(authRepositoryProvider).sendOtp(phone: phone, email: email),
+      () => ref
+          .read(authRepositoryProvider)
+          .login(email: email, password: password),
     );
-    if (!ref.mounted) return false;
-    state = result;
-    if (result.hasError) return false;
+    if (!ref.mounted) return;
+    state = result.whenData((_) {});
+    final auth = result.value;
+    if (auth == null) return;
+
     ref
-        .read(pendingLoginProvider.notifier)
-        .set(PendingLogin(phone: phone, email: email));
-    return true;
+        .read(sessionProvider.notifier)
+        .start(
+          Session(
+            accessToken: auth.accessToken,
+            refreshToken: auth.refreshToken,
+            user: auth.user ?? AppUser(id: '', phone: '', email: email),
+            needsProfile: auth.needsProfile,
+          ),
+        );
   }
 }
 

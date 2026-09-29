@@ -85,8 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 IconButton(
                   tooltip: 'Profile',
                   icon: const Icon(Icons.person_outline, color: AppColors.ink),
-                  // TODO: open profile; signs out for now (as in the design).
-                  onPressed: () => ref.read(sessionProvider.notifier).clear(),
+                  onPressed: () => context.push(Routes.account),
                 ),
               ],
             ),
