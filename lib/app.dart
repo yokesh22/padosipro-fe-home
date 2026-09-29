@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class padosiproMainWrapper extends StatefulWidget {
-  const padosiproMainWrapper({super.key});
+import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
+
+class PadosiProApp extends ConsumerWidget {
+  const PadosiProApp({super.key});
 
   @override
-  State<padosiproMainWrapper> createState() => _padosiproMainWrapperState();
-}
-
-class _padosiproMainWrapperState extends State<padosiproMainWrapper> {
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold();
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp.router(
+      title: 'PadosiPro',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      routerConfig: ref.watch(routerProvider),
+    );
   }
 }
