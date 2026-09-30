@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/task_request.dart';
 import '../../data/tasks_repository.dart';
+import 'active_tasks_provider.dart';
 import 'service_request_draft.dart';
 
 class CreateTaskNotifier extends AsyncNotifier<TaskRequest?> {
@@ -28,6 +29,7 @@ class CreateTaskNotifier extends AsyncNotifier<TaskRequest?> {
           ),
     );
     if (!ref.mounted) return null;
+    if (result.hasValue) ref.invalidate(activeTasksProvider);
     state = result;
     return result.value;
   }

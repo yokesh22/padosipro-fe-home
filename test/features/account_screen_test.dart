@@ -1,9 +1,20 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:padosipro/app.dart';
 import 'package:padosipro/core/storage/session_store.dart';
+import 'package:padosipro/features/tasks/data/models/task_request.dart';
+import 'package:padosipro/features/tasks/data/tasks_repository.dart';
+
+/// Keeps Home off the network.
+class _NoTasksRepository extends TasksRepository {
+  _NoTasksRepository() : super(Dio());
+
+  @override
+  Future<List<TaskRequest>> getActiveTasks({int limit = 5}) async => [];
+}
 
 Session _session({String? society}) => Session(
   accessToken: 'access',
@@ -30,7 +41,11 @@ void main() {
     WidgetTester tester,
     Session session,
   ) async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [
+        tasksRepositoryProvider.overrideWithValue(_NoTasksRepository()),
+      ],
+    );
     addTearDown(container.dispose);
     container.read(sessionProvider.notifier).start(session);
     await tester.pumpWidget(

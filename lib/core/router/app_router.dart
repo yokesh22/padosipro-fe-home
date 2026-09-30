@@ -11,6 +11,8 @@ import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/tasks/presentation/screens/all_services_screen.dart';
 import '../../features/tasks/presentation/screens/request_details_screen.dart';
 import '../../features/tasks/presentation/screens/request_when_screen.dart';
+import '../../features/tasks/presentation/screens/task_detail_screen.dart';
+import '../../features/tasks/presentation/widgets/active_tasks_section.dart';
 import '../storage/session_store.dart';
 import 'routes.dart';
 
@@ -57,7 +59,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Routes.home,
-        builder: (context, state) => const HomeScreen(),
+        builder: (context, state) =>
+            const HomeScreen(requestsSection: ActiveTasksSection()),
       ),
       GoRoute(
         path: Routes.services,
@@ -73,6 +76,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.requestDetails,
         builder: (context, state) => const RequestDetailsScreen(),
+      ),
+      GoRoute(
+        path: Routes.request,
+        builder: (context, state) =>
+            TaskDetailScreen(id: state.pathParameters['id']!),
       ),
       GoRoute(
         path: Routes.account,

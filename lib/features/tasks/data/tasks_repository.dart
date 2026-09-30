@@ -41,7 +41,48 @@ class TasksRepository {
           'details': details,
         },
       );
-      return TaskRequest.fromJson(res.data!);
+      return TaskRequest.fromJson(res.data!['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ErrorMapper.fromDio(e);
+    }
+  }
+
+  /// `GET /api/tasks?status=active`: the user's pending, assigned and
+  /// in-progress requests, newest first.
+  Future<List<TaskRequest>> getActiveTasks({int limit = 5}) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        ApiEndpoints.tasks,
+        queryParameters: {'status': 'active', 'limit': limit},
+      );
+      final data = res.data!['data'] as Map<String, dynamic>;
+      return [
+        for (final item in data['items'] as List<dynamic>)
+          TaskRequest.fromJson(item as Map<String, dynamic>),
+      ];
+    } on DioException catch (e) {
+      throw ErrorMapper.fromDio(e);
+    }
+  }
+
+  /// `GET /api/tasks/:id`. 404 `TASK_NOT_FOUND` if missing or not the user's.
+  Future<TaskRequest> getTask(String id) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(ApiEndpoints.task(id));
+      return TaskRequest.fromJson(res.data!['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ErrorMapper.fromDio(e);
+    }
+  }
+
+  /// `PATCH /api/tasks/:id/cancel`. 409 `TASK_NOT_CANCELLABLE` once the task
+  /// is past `assigned`.
+  Future<TaskRequest> cancelTask(String id) async {
+    try {
+      final res = await _dio.patch<Map<String, dynamic>>(
+        ApiEndpoints.cancelTask(id),
+      );
+      return TaskRequest.fromJson(res.data!['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ErrorMapper.fromDio(e);
     }

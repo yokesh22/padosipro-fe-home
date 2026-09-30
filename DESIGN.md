@@ -31,10 +31,15 @@ GoRouter with a session-driven `redirect`:
 | ------------------------ | -------------------- |
 | No session               | `/sign-in`, `/sign-up`, `/verify-otp` |
 | Session, profile missing | `/details`           |
-| Signed in                | `/home`, `/services`, `/account` |
+| Signed in                | `/home`, `/services`, `/requests/:id`, `/account` |
 
 Service request flow: `/services` → `/services/when` → `/services/details`,
 with a shared draft provider holding choices between steps.
+
+Home lists open requests (`GET /api/tasks?status=active`) and refetches after a
+booking; tapping one opens `/requests/:id`, which offers Cancel while the
+status is `pending` or `assigned`. That section belongs to the tasks feature; the router passes it into
+`HomeScreen`, so Home never imports another feature.
 
 ## UI
 

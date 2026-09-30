@@ -102,6 +102,9 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
             expands: true,
             maxLines: null,
             keyboardType: TextInputType.multiline,
+            // Backend limit.
+            maxLength: 1000,
+            buildCounter: _noCounter,
             textCapitalization: TextCapitalization.sentences,
             textAlignVertical: TextAlignVertical.top,
             style: const TextStyle(
@@ -171,3 +174,10 @@ class _Chip extends StatelessWidget {
     );
   }
 }
+
+Widget? _noCounter(
+  BuildContext context, {
+  required int currentLength,
+  required bool isFocused,
+  required int? maxLength,
+}) => null;

@@ -1,9 +1,14 @@
 abstract final class ApiEndpoints {
   /// Override with `--dart-define=API_BASE_URL=...`
   /// (Android emulator: `http://10.0.2.2:3002`).
+  // static const baseUrl = String.fromEnvironment(
+  //   'API_BASE_URL',
+  //   defaultValue: 'http://localhost:3002',
+  // );
+
   static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:3002',
+    defaultValue: 'https://padosipro-be-home.onrender.com',
   );
 
   static const register = '/api/auth/register';
@@ -14,4 +19,6 @@ abstract final class ApiEndpoints {
   static const profile = '/api/users/me';
   static const addresses = '/api/users/me/addresses';
   static const tasks = '/api/tasks';
+  static String task(String id) => '$tasks/$id';
+  static String cancelTask(String id) => '$tasks/$id/cancel';
 }

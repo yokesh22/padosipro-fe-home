@@ -87,8 +87,10 @@ const _months = [
   'Dec',
 ];
 
+/// Today's date in India (UTC+5:30), whatever the device's time zone. The
+/// backend accepts scheduled days from this date to 6 days after it.
 DateTime today() {
-  final now = DateTime.now();
+  final now = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
   return DateTime(now.year, now.month, now.day);
 }
 

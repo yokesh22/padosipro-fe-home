@@ -8,6 +8,8 @@ abstract final class Routes {
   static const requestWhen = '/services/when';
   static const requestDetails = '/services/details';
   static const account = '/account';
+  static const request = '/requests/:id';
+  static String requestPath(String id) => '/requests/$id';
 
   /// Reachable without a session.
   static const public = {signUp, signIn, verifyOtp};

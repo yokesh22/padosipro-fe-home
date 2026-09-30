@@ -11,7 +11,11 @@ import '../../../../core/theme/app_theme.dart';
 
 /// Home: LM banner, search, categories, trust strip and how it works.
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.requestsSection});
+
+  /// The user's open requests, supplied by the router so Home doesn't
+  /// import the tasks feature.
+  final Widget? requestsSection;
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -129,6 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           const SizedBox(height: 14),
                           _RequestSentBanner(message: _toast!),
                         ],
+                        ?widget.requestsSection,
                         const SizedBox(height: 26),
                         Text(
                           'What do you need help with?',
