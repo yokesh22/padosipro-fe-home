@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/service_catalog.dart';
-import '../../../../shared/widgets/back_text_button.dart';
+import '../../../../core/router/routes.dart';
 import '../../../../shared/widgets/primary_button.dart';
-import '../providers/create_task_notifier.dart';
+import '../providers/service_request_draft.dart';
+import '../widgets/request_flow_widgets.dart';
 
-/// Step 5: pick a category, optionally a kind of help, and send a request.
-/// Pops with a confirmation message for Home to show.
+/// Request flow step 1: pick a category, a kind of help and a service.
+/// Pops with the "request sent" message once the flow completes.
 class AllServicesScreen extends ConsumerStatefulWidget {
   const AllServicesScreen({super.key, this.initialCategory});
 
@@ -24,14 +26,20 @@ class _AllServicesScreenState extends ConsumerState<AllServicesScreen> {
   static const _categories = ServiceCatalog.categories;
 
   final _cardKeys = List.generate(_categories.length, (_) => GlobalKey());
-  int? _selected;
-  String? _subType;
 
   @override
   void initState() {
     super.initState();
-    _selected = widget.initialCategory;
-    if (_selected != null) _scrollTo(_selected!);
+    final initial = widget.initialCategory;
+    if (initial != null) {
+      // Providers can't change during initState; this lands while the page
+      // is still transitioning in.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(serviceRequestDraftProvider.notifier).selectCategory(initial);
+        _scrollTo(initial);
+      });
+    }
   }
 
   void _scrollTo(int index) {
@@ -47,104 +55,60 @@ class _AllServicesScreenState extends ConsumerState<AllServicesScreen> {
   }
 
   void _selectCategory(int index) {
-    if (_selected == index) return;
-    setState(() {
-      _selected = index;
-      _subType = null;
-    });
+    if (ref.read(serviceRequestDraftProvider).categoryIndex == index) return;
+    ref.read(serviceRequestDraftProvider.notifier).selectCategory(index);
     _scrollTo(index);
   }
 
-  Future<void> _submit() async {
-    final index = _selected;
-    if (index == null) return;
-    final category = _categories[index];
-    final created = await ref
-        .read(createTaskProvider.notifier)
-        .submit(category: category.label, subType: _subType);
-    if (created != null && mounted) {
-      context.pop('${_subType ?? category.label} request sent');
+  Future<void> _continue() async {
+    if (ref.read(serviceRequestDraftProvider).service == null) return;
+    final sent = await context.push<String>(Routes.requestWhen);
+    if (sent != null && mounted) context.pop(sent);
+  }
+
+  Future<void> _openPartner(Partner partner) async {
+    final opened = await launchUrl(
+      Uri.parse(partner.url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Couldn\'t open ${partner.label}.')),
+        );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(createTaskProvider, (_, next) {
-      if (next is AsyncError) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(next.error.toString())));
-      }
-    });
-    final isLoading = ref.watch(createTaskProvider).isLoading;
-    final textTheme = Theme.of(context).textTheme;
+    final draft = ref.watch(serviceRequestDraftProvider);
+    final notifier = ref.read(serviceRequestDraftProvider.notifier);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: BackTextButton(onPressed: () => context.pop()),
-                    ),
-                    const SizedBox(height: 18),
-                    Text(
-                      'What do you need help with?',
-                      style: textTheme.headlineLarge?.copyWith(fontSize: 27),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Pick a category, then choose a service. You can add '
-                      'details next.',
-                      style: textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 22),
-                    for (var i = 0; i < _categories.length; i++)
-                      Padding(
-                        key: _cardKeys[i],
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: _CategoryCard(
-                          category: _categories[i],
-                          selected: _selected == i,
-                          selectedSubType: _selected == i ? _subType : null,
-                          onTap: () => _selectCategory(i),
-                          onSubTypeTap: (sub) => setState(
-                            () => _subType = _subType == sub ? null : sub,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(
-                AppSizes.pagePadding,
-                16,
-                AppSizes.pagePadding,
-                AppSizes.pagePadding,
-              ),
-              decoration: const BoxDecoration(
-                color: AppColors.background,
-                border: Border(top: BorderSide(color: Color(0x14000000))),
-              ),
-              child: PrimaryButton(
-                label: 'Continue',
-                loadingLabel: 'Sending…',
-                enabled: _selected != null,
-                isLoading: isLoading,
-                onPressed: _submit,
-              ),
-            ),
-          ],
-        ),
+    return RequestFlowPage(
+      title: 'What do you need help with?',
+      subtitle:
+          'Pick a category, then choose a service. You can add details next.',
+      footer: PrimaryButton(
+        label: 'Continue',
+        enabled: draft.service != null,
+        onPressed: _continue,
       ),
+      children: [
+        for (var i = 0; i < _categories.length; i++)
+          Padding(
+            key: _cardKeys[i],
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _CategoryCard(
+              category: _categories[i],
+              draft: draft.categoryIndex == i ? draft : null,
+              onTap: () => _selectCategory(i),
+              onHelpTypeTap: notifier.selectHelpType,
+              onServiceTap: notifier.toggleService,
+              onPartnerTap: _openPartner,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -152,35 +116,35 @@ class _AllServicesScreenState extends ConsumerState<AllServicesScreen> {
 class _CategoryCard extends StatelessWidget {
   const _CategoryCard({
     required this.category,
-    required this.selected,
-    required this.selectedSubType,
+    required this.draft,
     required this.onTap,
-    required this.onSubTypeTap,
+    required this.onHelpTypeTap,
+    required this.onServiceTap,
+    required this.onPartnerTap,
   });
 
   final ServiceCategory category;
-  final bool selected;
-  final String? selectedSubType;
+
+  /// Set only when this card is the selected one.
+  final ServiceRequestDraft? draft;
   final VoidCallback onTap;
-  final ValueChanged<String> onSubTypeTap;
+  final ValueChanged<int> onHelpTypeTap;
+  final ValueChanged<String> onServiceTap;
+  final ValueChanged<Partner> onPartnerTap;
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(AppSizes.radiusLg);
+    final draft = this.draft;
+    final selected = draft != null;
+    final partner = draft?.partner;
 
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.selectedBg : AppColors.surface,
-          borderRadius: radius,
-          border: Border.all(
-            color: selected ? AppColors.primary : AppColors.border,
-          ),
-        ),
+        decoration: flowCardDecoration(selected: selected),
         child: ClipRRect(
-          borderRadius: radius,
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg),
           child: Stack(
             children: [
               // Gold accent bar on the selected card.
@@ -240,30 +204,45 @@ class _CategoryCard extends StatelessWidget {
                               color: AppColors.muted,
                             ),
                           ),
-                          if (selected) ...[
-                            const SizedBox(height: 14),
-                            const Text(
-                              'WHAT KIND OF HELP?',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.8,
-                                color: AppColors.muted,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
+                          if (draft != null) ...[
+                            const SizedBox(height: 16),
+                            const FlowSectionLabel('WHAT KIND OF HELP?'),
+                            const SizedBox(height: 10),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                for (final sub in category.subTypes)
-                                  _SubTypePill(
-                                    label: sub,
-                                    selected: sub == selectedSubType,
-                                    onTap: () => onSubTypeTap(sub),
+                                for (
+                                  var h = 0;
+                                  h < category.helpTypes.length;
+                                  h++
+                                )
+                                  FlowPill(
+                                    label: category.helpTypes[h].label,
+                                    selected: h == draft.helpTypeIndex,
+                                    onTap: () => onHelpTypeTap(h),
                                   ),
                               ],
                             ),
+                            const SizedBox(height: 18),
+                            const FlowSectionLabel('CHOOSE A SERVICE'),
+                            const SizedBox(height: 10),
+                            for (final service in draft.helpType!.services)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: FlowPill(
+                                  label: service,
+                                  selected: service == draft.service,
+                                  onTap: () => onServiceTap(service),
+                                ),
+                              ),
+                            if (partner != null) ...[
+                              const SizedBox(height: 6),
+                              _PartnerBanner(
+                                partner: partner,
+                                onTap: () => onPartnerTap(partner),
+                              ),
+                            ],
                           ],
                         ],
                       ),
@@ -274,6 +253,51 @@ class _CategoryCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PartnerBanner extends StatelessWidget {
+  const _PartnerBanner({required this.partner, required this.onTap});
+
+  final Partner partner;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.partnerBg,
+        borderRadius: BorderRadius.circular(AppSizes.radius),
+        border: Border.all(color: AppColors.soonBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            link: true,
+            child: GestureDetector(
+              onTap: onTap,
+              child: Text(
+                'Booking this yourself? Quick book via ${partner.label} →',
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  height: 1.4,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.partnerInk,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Or continue below for your Lifestyle Manager to handle it.',
+            style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.muted),
+          ),
+        ],
       ),
     );
   }
@@ -297,47 +321,6 @@ class _SoonBadge extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: AppColors.soonInk,
-        ),
-      ),
-    );
-  }
-}
-
-class _SubTypePill extends StatelessWidget {
-  const _SubTypePill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.primary : AppColors.surface,
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.border,
-        ),
-      ),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
-              color: selected ? Colors.white : AppColors.ink,
-            ),
-          ),
         ),
       ),
     );

@@ -9,6 +9,8 @@ import '../../features/auth/presentation/screens/sign_up_screen.dart';
 import '../../features/auth/presentation/screens/verify_otp_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/tasks/presentation/screens/all_services_screen.dart';
+import '../../features/tasks/presentation/screens/request_details_screen.dart';
+import '../../features/tasks/presentation/screens/request_when_screen.dart';
 import '../storage/session_store.dart';
 import 'routes.dart';
 
@@ -61,6 +63,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.services,
         builder: (context, state) =>
             AllServicesScreen(initialCategory: state.extra as int?),
+      ),
+      // Flat (not nested under services) so a push adds just this page on
+      // top of All services.
+      GoRoute(
+        path: Routes.requestWhen,
+        builder: (context, state) => const RequestWhenScreen(),
+      ),
+      GoRoute(
+        path: Routes.requestDetails,
+        builder: (context, state) => const RequestDetailsScreen(),
       ),
       GoRoute(
         path: Routes.account,

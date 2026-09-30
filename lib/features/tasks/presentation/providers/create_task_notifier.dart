@@ -4,21 +4,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/task_request.dart';
 import '../../data/tasks_repository.dart';
+import 'service_request_draft.dart';
 
 class CreateTaskNotifier extends AsyncNotifier<TaskRequest?> {
   @override
   FutureOr<TaskRequest?> build() => null;
 
-  /// Returns the created request, or null on failure.
-  Future<TaskRequest?> submit({
-    required String category,
-    String? subType,
-  }) async {
+  /// Sends a complete [draft] ([ServiceRequestDraft.canSend]). Returns the
+  /// created request, or null on failure.
+  Future<TaskRequest?> submit(ServiceRequestDraft draft) async {
     state = const AsyncLoading();
     final result = await AsyncValue.guard<TaskRequest?>(
       () => ref
           .read(tasksRepositoryProvider)
-          .createTaskRequest(category: category, subType: subType),
+          .createTaskRequest(
+            category: draft.category!.label,
+            helpType: draft.helpType!.label,
+            service: draft.service!,
+            timing: draft.timing!,
+            day: draft.day,
+            slot: draft.slot,
+            details: draft.details.trim(),
+          ),
     );
     if (!ref.mounted) return null;
     state = result;
